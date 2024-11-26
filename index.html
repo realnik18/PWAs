@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lesson App with Checkout</title>
+  <!-- Vue 3 Library -->
+  <script src="https://unpkg.com/vue@3.2.37/dist/vue.global.js"></script>
+  <!-- Load lesson data globally -->
+  <script src="lessons.js"></script>
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+  
+</head>
+<body>
+  <div id="app">
+    <h1>Lessons Available</h1>
+    <h3>Search Lessons</h3>
+    <input v-model="searchQuery" type="text" placeholder="Search for lessons..." />
+
+    <h3>Sort By</h3>
+    <!-- Dropdown for Sort Criteria -->
+    <select v-model="sortCriteria">
+      <option value="subject">Subject</option>
+      <option value="location">Location</option>
+      <option value="price">Price</option>
+      <option value="availableInventory">Availability</option>
+    </select>
+    
+    <h3>Order</h3>
+    <!-- Sort Order -->
+    <label>
+      <input type="radio" value="ascending" v-model="sortOrder" /> Ascending
+    </label>
+    <label>
+      <input type="radio" value="descending" v-model="sortOrder" /> Descending
+    </label>
+
+    <!-- Split into two separate buttons -->
+    <div class="nav-buttons">
+      <button v-if="showCheckout" @click="toggleCheckout" class="back-button">
+        <i class="fas fa-arrow-left"></i> Go back to lessons
+      </button>
+      <button v-if="cart.length > 0 && !showCheckout" @click="toggleCheckout" class="checkout-button">
+        <i class="fas fa-shopping-cart"></i> Checkout
+      </button>
+    </div>
+
+    <!-- Lessons List -->
+    <div v-if="!showCheckout">
+      <div class="lesson-grid">
+        <div v-for="lesson in filteredAndSortedLessons" :key="lesson.id" class="lesson-card">
+          <h2><i :class="lesson.icon"></i> {{ lesson.subject }}</h2>
+          <p>Location: {{ lesson.location }}</p>
+          <p>Price: £{{ lesson.price }}</p>
+          <p>Spaces: {{ lesson.availableInventory }}</p>
+          <button @click="addToCart(lesson)" class="add-button" :disabled="lesson.availableInventory <= 0">
+            {{ lesson.availableInventory > 0 ? 'Add to cart' : 'Sold Out' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Checkout and Cart -->
+    <div v-else class="checkout-section">
+      <h2 class="checkout-header">Checkout</h2>
+      <div class="checkout-form">
+        <label>
+          Name:
+          <input 
+            v-model="customerName" 
+            type="text" 
+            placeholder="Enter your name" 
+            required
+            @input="validateName"
+            pattern="[A-Za-z ]+"
+          >
+          <span v-if="nameError" class="error">{{ nameError }}</span>
+        </label>
+        <label>
+          Phone:
+          <input v-model="customerPhone" type="tel" placeholder="Enter your phone" required>
+          <span v-if="phoneError" class="error">{{ phoneError }}</span>
+        </label>
+        <button @click="placeOrder" class="checkout-button" :disabled="!isFormValid">Checkout</button>
+      </div>
+      
+      
+
+      <h2 class="cart-header">Shopping Cart</h2>
+      <div v-if="cart.length > 0" class="cart-section">
+        <div v-for="item in cart" :key="item.id" class="cart-item">
+          <h3>Subject: {{ item.subject }}</h3>
+          <p>Location: {{ item.location }}</p>
+          <p>Price: £{{ item.price }}</p>
+          <p>Spaces: {{ item.availableInventory }}</p>
+          <button @click="removeFromCart(item)" class="remove-button">Remove</button>
+        </div>
+        <h3>Total: £{{ totalCost }}</h3>
+      </div>
+      <div v-else>
+        <p>Your cart is empty.</p>
+      </div>
+
+      <div v-if="orderConfirmed" class="confirmation-message">
+        <i class="fas fa-check-circle"></i>
+        <h2>Thank You!</h2>
+        <p>{{ confirmationMessage }}</p>
+        <button @click="returnToLessons" class="back-button">
+          <i class="fas fa-arrow-left"></i> Return to Lessons
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          sortCriteria: 'price', // Default sort criteria
+          sortOrder: 'ascending', // Default sort order
+          lesson: window.lesson, // Lessons data from global scope
+          cart: [],
+          showCheckout: false,
+          customerName: '',
+          customerPhone: '',
+          searchQuery: '', // Search query for filtering lessons
+          orderConfirmed: false,
+          confirmationMessage: ''
+        };
+      },
+      computed: {
+        filteredAndSortedLessons() {
+          // First, filter lessons based on the search query
+          const filteredLessons = this.lesson.filter(lesson => {
+            const query = this.searchQuery.toLowerCase();
+            return (
+              lesson.subject.toLowerCase().includes(query) ||
+              lesson.location.toLowerCase().includes(query) ||
+              String(lesson.price).includes(query) ||
+              String(lesson.availableInventory).includes(query)
+            );
+          });
+
+          // Then, sort the filtered lessons
+          return filteredLessons.sort((a, b) => {
+            const modifier = this.sortOrder === 'ascending' ? 1 : -1;
+            if (typeof a[this.sortCriteria] === 'string') {
+              return a[this.sortCriteria].localeCompare(b[this.sortCriteria]) * modifier;
+            } else {
+              return (a[this.sortCriteria] - b[this.sortCriteria]) * modifier;
+            }
+          });
+        },
+        totalCost() {
+          return this.cart.reduce((sum, item) => sum + item.price, 0);
+        },
+        nameError() {
+          const name = this.customerName.trim();
+          if (name === '') {
+            return 'Name is required';
+          }
+          if (name.length < 3) {
+            return 'Name must be at least 3 characters';
+          }
+          if (!/^[a-zA-Z\s]*$/.test(name)) {
+            return 'Name can only contain letters and spaces';
+          }
+          return '';
+        },
+        phoneError() {
+      const phonePattern = /^[0-9]{10}$/;
+      return !phonePattern.test(this.customerPhone)
+        ? 'Phone must be a 10-digit number'
+        : '';
+    },
+        isFormValid() {
+          return !this.nameError && !this.phoneError;;
+        }
+      },
+      methods: {
+        toggleCheckout() {
+          this.showCheckout = !this.showCheckout;
+        },
+        addToCart(lesson) {
+          if (lesson.availableInventory > 0) {
+            this.cart.push(lesson);
+            lesson.availableInventory -= 1;
+            
+          }
+        },
+        removeFromCart(item) {
+          const index = this.cart.indexOf(item);
+          if (index > -1) {
+            this.cart.splice(index, 1);
+            item.availableInventory += 1; // Restore inventory when item is removed from cart
+          }
+        },
+        validateName() {
+          const name = this.customerName.trim();
+          if (name === '') {
+            return 'Name is required';
+          }
+          if (name.length < 3) {
+            return 'Name must be at least 3 characters';
+          }
+          if (!/^[a-zA-Z\s]*$/.test(name)) {
+            return 'Name can only contain letters and spaces';
+          }
+          return '';
+        },
+        placeOrder() {
+          if (this.isFormValid) {
+            const order = {
+              name: this.customerName,
+              phone: this.customerPhone,
+              lessons: this.cart
+            };
+
+            console.log('Sending order:', order);
+
+            fetch('http://localhost:3000/orders', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(order)
+            })
+            .then(response => response.json())
+            .then(data => {
+              console.log('Success:', data);
+              this.orderConfirmed = true;
+              this.confirmationMessage = `Thank you for your order, ${this.customerName}!`;
+              this.cart = [];
+              this.customerName = '';
+              this.customerPhone = '';
+            })
+            .catch(error => {
+              console.error('Error:', error);
+              alert('Error processing order. Please try again.');
+            });
+          }
+        },
+        returnToLessons() {
+          this.orderConfirmed = false;
+          this.showCheckout = false;
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
