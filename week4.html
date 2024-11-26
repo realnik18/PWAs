@@ -9,6 +9,7 @@
     <script src="Products.js"></script>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <link rel="manifest" href="petstore.webmanifest">
 </head>
 <body>
     <div id="app">
@@ -21,7 +22,7 @@
         </header>
         <main>
             <div v-if="showProduct">
-                <div v-for="product in sortedProducts" :key="product.id">
+                <div v-for="product in sortedProducts" :key="product.id" class="product">
                     <h2 v-text="product.title"></h2>    
                     <figure>
                         <img v-bind:src="product.image" alt="Product Image"/>

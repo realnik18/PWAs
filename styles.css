@@ -2,3 +2,10 @@ img {
     width: 100px;
     height: 100px;
 }
+
+.product {
+    border: 1px gray solid;
+    padding: 20px;
+    margin: 20px;
+    text-align: center;
+}
